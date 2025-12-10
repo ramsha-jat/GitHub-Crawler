@@ -48,7 +48,7 @@ jobs:
           DB_DSN: postgres://postgres:postgres@localhost:5432/postgres
           TARGET_REPOS: 100000
         run: |
-          python scripts/crawl_stars_graphql.py
+          python scripts/crawl_stars.py
 
       - name: Dump database to SQL
         run: |
