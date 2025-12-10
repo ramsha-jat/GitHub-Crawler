@@ -7,30 +7,45 @@ on:
 
 jobs:
   crawl:
-    runs-on: self-hosted   # must be a runner with Postgres installed
+    runs-on: self-hosted   # your Windows 11 machine
 
     steps:
+      # 1️⃣ Checkout repository
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 2️⃣ Set up Python
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
+      # 3️⃣ Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install requests psycopg2-binary tenacity
 
+      # 4️⃣ Add Postgres bin folder to PATH
+      - name: Add Postgres to PATH
+        run: |
+          $env:Path += ";D:\postgres\bin"
+
+      # 5️⃣ Wait for Postgres to be ready
       - name: Wait for Postgres
         run: |
-          for i in {1..30}; do pg_isready -h localhost -p 5432 -U postgres && break || sleep 1; done
+          for ($i = 1; $i -le 30; $i++) {
+            & pg_isready.exe -h localhost -p 5432 -U postgres
+            if ($LASTEXITCODE -eq 0) { break }
+            Start-Sleep -Seconds 1
+          }
 
+      # 6️⃣ Setup Postgres schema
       - name: Setup Postgres schema
         run: |
-          psql "postgresql://postgres:root@localhost:5432/postgres" -f sql/setup_schema.sql
+          & psql.exe "postgresql://postgres:root@localhost:5432/postgres" -f sql/setup_schema.sql
 
+      # 7️⃣ Crawl stars
       - name: Crawl stars
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -38,12 +53,14 @@ jobs:
         run: |
           python scripts/crawl_stars.py
 
+      # 8️⃣ Dump DB
       - name: Dump DB
         run: |
-          pg_dump -h localhost -U postgres -d postgres -F c -f /tmp/postgres.dump
+          & pg_dump.exe -h localhost -U postgres -d postgres -F c -f "D:\temp\postgres.dump"
 
+      # 9️⃣ Upload DB dump
       - name: Upload DB dump
         uses: actions/upload-artifact@v4
         with:
           name: pg-dump
-          path: /tmp/postgres.dump
+          path: D:\temp\postgres.dump
