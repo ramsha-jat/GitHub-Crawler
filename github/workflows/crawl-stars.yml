@@ -18,7 +18,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-ccmd "pg_isready -U postgres -d postgres"
           --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
@@ -43,14 +43,12 @@ jobs:
         run: |
           psql "postgresql://postgres:postgres@localhost:5432/postgres" -f sql/setup_schema.sql
 
-      - name: Crawl stars (GraphQL)
+      - name: Crawl stars
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DB_DSN: postgresql://postgres:postgres@localhost:5432/postgres
-          TARGET_REPOS: 100000
-          GRAPHQL_BATCH: 20
         run: |
-          python scripts/crawl_stars_graphql.py
+          python scripts/crawl_stars.py
 
       - name: Dump DB
         run: |
