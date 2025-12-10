@@ -1,0 +1,60 @@
+If we scale from 100k → 500M repos, the current approach must change.
+Parallelization: Use multiple workers to crawl different ranges (since cursor) concurrently.
+Batching: Keep GraphQL batches small (~20-50) to avoid exceeding rate limits.
+Checkpointing: Store the last processed since ID in a state table, so you can resume without restarting from scratch.
+
+For now, we have:
+
+repos (basic repo info)
+
+repo_stars_history (daily snapshots)
+Future metadata for PRs, issues, comments chnge the schema 
+CREATE TABLE issues (
+    id BIGINT PRIMARY KEY,
+    repo_id BIGINT REFERENCES repos(github_repo_id),
+    number INT,
+    title TEXT,
+    state TEXT,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ
+);
+
+CREATE TABLE pull_requests (
+    id BIGINT PRIMARY KEY,
+    repo_id BIGINT REFERENCES repos(github_repo_id),
+    number INT,
+    title TEXT,
+    state TEXT,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ
+);
+
+CREATE TABLE comments (
+    id BIGINT PRIMARY KEY,
+    parent_type TEXT, -- 'PR' or 'Issue'
+    parent_id BIGINT,
+    author TEXT,
+    body TEXT,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ
+);
+
+CREATE TABLE pr_reviews (
+    id BIGINT PRIMARY KEY,
+    pr_id BIGINT REFERENCES pull_requests(id),
+    reviewer TEXT,
+    state TEXT,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ
+);
+
+CREATE TABLE ci_checks (
+    id BIGINT PRIMARY KEY,
+    pr_id BIGINT REFERENCES pull_requests(id),
+    check_name TEXT,
+    status TEXT,
+    conclusion TEXT,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ
+);
+
