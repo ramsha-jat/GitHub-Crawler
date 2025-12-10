@@ -1,66 +1,63 @@
-name: crawl-stars-graphql
+name: Crawl Stars
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 3 * * *'   # daily at 03:00 UTC
+  push:
 
 jobs:
   crawl:
-    runs-on: self-hosted   # your Windows 11 machine
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
-      # 1️⃣ Checkout repository
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      # 2️⃣ Set up Python
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      # 3️⃣ Install dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests psycopg2-binary tenacity
+          pip install -r requirements.txt
 
-      # 4️⃣ Add Postgres bin folder to PATH
-      - name: Add Postgres to PATH
+      - name: Setup database schema
         run: |
-          $env:Path += ";D:\postgres\bin"
+          psql "postgres://postgres:postgres@localhost:5432/postgres" \
+            -f sql/setup_schema.sql
 
-      # 5️⃣ Wait for Postgres to be ready
-      - name: Wait for Postgres
-        run: |
-          for ($i = 1; $i -le 30; $i++) {
-            & pg_isready.exe -h localhost -p 5432 -U postgres
-            if ($LASTEXITCODE -eq 0) { break }
-            Start-Sleep -Seconds 1
-          }
-
-      # 6️⃣ Setup Postgres schema
-      - name: Setup Postgres schema
-        run: |
-          & psql.exe "postgresql://postgres:root@localhost:5432/postgres" -f sql/setup_schema.sql
-
-      # 7️⃣ Crawl stars
-      - name: Crawl stars
+      - name: Run crawler
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DB_DSN: postgresql://postgres:root@localhost:5432/postgres
+          DB_DSN: postgres://postgres:postgres@localhost:5432/postgres
+          TARGET_REPOS: 100000
         run: |
-          python scripts/crawl_stars.py
+          python scripts/crawl_stars_graphql.py
 
-      # 8️⃣ Dump DB
-      - name: Dump DB
+      - name: Dump database to SQL
         run: |
-          & pg_dump.exe -h localhost -U postgres -d postgres -F c -f "D:\temp\postgres.dump"
+          pg_dump --data-only --column-inserts --no-owner \
+            "postgres://postgres:postgres@localhost:5432/postgres" \
+            > output.sql
 
-      # 9️⃣ Upload DB dump
-      - name: Upload DB dump
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pg-dump
-          path: D:\temp\postgres.dump
+          name: db-dump
+          path: output.sql
